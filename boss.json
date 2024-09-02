@@ -1,0 +1,8 @@
+{
+	"name": "DownloadThree",
+	"description": "",
+	"version": "0.0.1",
+	"homepage": "github.com/arbsis/DownloadThree",
+	"mainsrc": "./src",
+	"dependencies": {}
+}
