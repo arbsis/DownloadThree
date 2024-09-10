@@ -1,0 +1,46 @@
+﻿package DownloadThree;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS OFF}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION ON}
+{$OVERFLOWCHECKS OFF}
+{$RANGECHECKS OFF}
+{$REFERENCEINFO OFF}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES OFF}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE RELEASE}
+{$ENDIF IMPLICITBUILDING}
+{$DESCRIPTION 'Classes com funções para Download de arquivos'}
+{$RUNONLY}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  IndySystem,
+  IndyProtocols,
+  IndyCore;
+
+contains
+  Downloads.HTTPClient in 'src\Downloads.HTTPClient.pas',
+  Downloads.Indy in 'src\Downloads.Indy.pas',
+  Downloads.Interfaces in 'src\Downloads.Interfaces.pas',
+  Downloads.Language in 'src\Downloads.Language.pas',
+  Downloads.Three in 'src\Downloads.Three.pas',
+  Downloads.WinInet in 'src\Downloads.WinInet.pas';
+
+end.
