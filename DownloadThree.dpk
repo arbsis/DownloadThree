@@ -27,7 +27,7 @@
 {$ENDIF IMPLICITBUILDING}
 {$DESCRIPTION 'Classes com funções para Download de arquivos'}
 {$RUNONLY}
-{$IMPLICITBUILD ON}
+{$IMPLICITBUILD OFF}
 
 requires
   rtl,
