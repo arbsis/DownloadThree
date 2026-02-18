@@ -74,7 +74,7 @@ implementation
 uses
   System.DateUtils,
   System.IOUtils,
-  ShellAPI, Downloads.Language;
+  Winapi.ShellAPI, Downloads.Language;
 
 { TForm1 }
 
