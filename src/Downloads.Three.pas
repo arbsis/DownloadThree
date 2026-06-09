@@ -159,14 +159,16 @@ end;
 function TDownloadThreeTools.SimpleDownloadFile(AUrl, AFile: String): Boolean;
 begin
   Result := TDownloadToolsWinInet.New.SimpleDownloadFile(AUrl, AFile);
-  if Result then
+  if Result and (FileSize(AFile) > 0) then
     Exit;
 
   Result := TDownloadToolsIndy.New.SimpleDownloadFile(AUrl, AFile);
-  if Result then
+  if Result and (FileSize(AFile) > 0) then
     Exit;
 
   Result := TDownloadToolsHTTPClient.New.SimpleDownloadFile(AUrl, AFile);
+  if Result and (FileSize(AFile) = 0) then
+    Result := False;
 end;
 
 end.
