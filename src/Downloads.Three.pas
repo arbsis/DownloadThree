@@ -5,6 +5,7 @@ interface
 uses
   System.Classes,
   System.Threading,
+  System.IOUtils,
   Downloads.Interfaces,
   Downloads.WinInet,
   Downloads.Indy,
@@ -159,15 +160,15 @@ end;
 function TDownloadThreeTools.SimpleDownloadFile(AUrl, AFile: String): Boolean;
 begin
   Result := TDownloadToolsWinInet.New.SimpleDownloadFile(AUrl, AFile);
-  if Result and (FileSize(AFile) > 0) then
+  if Result and (TFile.GetSize(AFile) > 0) then
     Exit;
 
   Result := TDownloadToolsIndy.New.SimpleDownloadFile(AUrl, AFile);
-  if Result and (FileSize(AFile) > 0) then
+  if Result and (TFile.GetSize(AFile) > 0) then
     Exit;
 
   Result := TDownloadToolsHTTPClient.New.SimpleDownloadFile(AUrl, AFile);
-  if Result and (FileSize(AFile) = 0) then
+  if Result and (TFile.GetSize(AFile) = 0) then
     Result := False;
 end;
 
