@@ -3,6 +3,7 @@
 interface
 
 uses
+  Winapi.Windows,
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
   System.ImageList,
   Winapi.WinInet,
@@ -39,10 +40,14 @@ type
   function GetContentLength(URLHandle: HINTERNET): Int64;
   function GetContentStatusCode(URLHandle: HINTERNET): Integer;
 
+  // True quando o WinInet está sem o TLS 1.2 (Opções da Internet > Avançadas > "Usar TLS 1.2").
+  // O Windows 7 vem com ele desligado; do Windows 8 em diante, ligado. Sem ele, os downloads em https falham.
+  function TLS12Desligado: Boolean;
+
 implementation
 
 uses
-  System.Hash, Downloads.Language;
+  System.Hash, System.Win.Registry, Downloads.Language;
 
 function GetContentLength(URLHandle: HINTERNET): Int64;
 var
@@ -72,6 +77,46 @@ begin
     Result := -1;
 end;
 
+function TLS12Desligado: Boolean;
+const
+  CHAVE = 'Software\Microsoft\Windows\CurrentVersion\Internet Settings';
+  POLITICA = 'Software\Policies\Microsoft\Windows\CurrentVersion\Internet Settings';
+  SECURE_PROTOCOLS = 'SecureProtocols';
+  TLS_1_2 = $800;
+var
+  LProtocolos: Integer;
+
+  function Ler(ARaiz: HKEY; const ACaminho: String): Boolean;
+  var
+    LRegistro: TRegistry;
+  begin
+    Result := False;
+    LRegistro := TRegistry.Create(KEY_READ);
+    try
+      LRegistro.RootKey := ARaiz;
+      if LRegistro.OpenKeyReadOnly(ACaminho) and LRegistro.ValueExists(SECURE_PROTOCOLS) then
+      begin
+        LProtocolos := LRegistro.ReadInteger(SECURE_PROTOCOLS);
+        Result := True;
+      end;
+    finally
+      LRegistro.Free;
+    end;
+  end;
+
+begin
+  try
+    // A política (GPO) vale mais que a escolha do usuário, e a do usuário mais que a da máquina.
+    if Ler(HKEY_LOCAL_MACHINE, POLITICA) or Ler(HKEY_CURRENT_USER, POLITICA) or
+       Ler(HKEY_CURRENT_USER, CHAVE) or Ler(HKEY_LOCAL_MACHINE, CHAVE) then
+      Result := (LProtocolos and TLS_1_2) = 0
+    else
+      Result := not TOSVersion.Check(6, 2); // sem valor gravado: o padrão do Windows
+  except
+    Result := False;
+  end;
+end;
+
 { TDownloadToolsWinInet }
 
 class function TDownloadToolsWinInet.New: IDownloadTools;
@@ -86,45 +131,52 @@ var
   hSession, hURL: HInternet;
   Buffer: array[1..BufferSize] of Byte;
   BufferLen: DWORD;
-  F: File;
+  LArquivo: TFileStream;
+  LCriou: Boolean;
 begin
+  // Nunca levanta exceção: em qualquer falha devolve False, e o TDownloadThreeTools tenta o próximo método.
+  // Antes, sem conexão (Windows 7 sem TLS 1.2), o BlockWrite gravava um tamanho sem valor: "I/O error 1784".
   Result := False;
-  hSession := InternetOpen('', INTERNET_OPEN_TYPE_PRECONFIG, nil, nil, 0);
-
-  // Establish the secure connection
-  InternetConnect(
-    hSession,
-    PChar(AUrl),
-    INTERNET_DEFAULT_HTTPS_PORT,
-    '',
-    '',
-    INTERNET_SERVICE_HTTP,
-    0,
-    0
-  );
-
+  LCriou := False;
   try
-    hURL := InternetOpenURL(hSession, PChar(AUrl), nil, 0, 0, 0);
-    if GetContentStatusCode(hURL) >= 400 then
+    hSession := InternetOpen('', INTERNET_OPEN_TYPE_PRECONFIG, nil, nil, 0);
+    if hSession = nil then
       Exit;
     try
-      AssignFile(f, AFile);
-      Rewrite(f,1);
+      hURL := InternetOpenURL(hSession, PChar(AUrl), nil, 0, 0, 0);
+      if hURL = nil then
+        Exit;
       try
-        repeat
-          InternetReadFile(hURL, @Buffer, SizeOf(Buffer), BufferLen);
-          BlockWrite(f, Buffer, BufferLen);
-        until BufferLen = 0;
-      finally
-        CloseFile(f);
+        if GetContentStatusCode(hURL) >= 400 then
+          Exit;
+
+        LArquivo := TFileStream.Create(AFile, fmCreate);
+        LCriou := True;
+        try
+          repeat
+            // Só grava o que foi lido; a leitura que falha interrompe o download.
+            if not InternetReadFile(hURL, @Buffer, SizeOf(Buffer), BufferLen) then
+              Abort; // cai no except abaixo, que apaga o arquivo
+            if BufferLen > 0 then
+              LArquivo.WriteBuffer(Buffer, BufferLen);
+          until BufferLen = 0;
+        finally
+          LArquivo.Free;
+        end;
         Result := True;
+      finally
+        InternetCloseHandle(hURL);
       end;
     finally
-      InternetCloseHandle(hURL);
-    end
-  finally
-    InternetCloseHandle(hSession);
+      InternetCloseHandle(hSession);
+    end;
+  except
+    Result := False;
   end;
+
+  // Arquivo pela metade não fica no disco.
+  if LCriou and (not Result) then
+    DeleteFile(AFile);
 end;
 
 function TDownloadToolsWinInet.CheckMD5File(AUrl, AFile, AMD5: String): Boolean;
@@ -176,60 +228,69 @@ var
   hSession, hURL: HInternet;
   Buffer: array[1..BufferSize] of Byte;
   BufferLen: DWORD;
-  F: File;
+  LArquivo: TFileStream;
+  LCriou, LBaixou: Boolean;
 begin
+  Result := Self;
   FFileName := AFile;
+  LCriou := False;
+  LBaixou := False;
   try
     hSession := InternetOpen('', INTERNET_OPEN_TYPE_PRECONFIG, nil, nil, 0);
-
-    // Establish the secure connection
-    InternetConnect(
-      hSession,
-      PChar(AUrl),
-      INTERNET_DEFAULT_HTTPS_PORT,
-      '',
-      '',
-      INTERNET_SERVICE_HTTP,
-      0,
-      0
-    );
-
+    if hSession = nil then
+      raise Exception.CreateFmt(LangNoConnection[Integer(DownloadLanguage)], [GetLastError]);
     try
+      // Sem conexão: no Windows 7 sem TLS 1.2 o https não abre (ver TLS12Desligado).
       hURL := InternetOpenURL(hSession, PChar(AUrl), nil, 0, 0, 0);
-      if GetContentStatusCode(hURL) >= 400 then
-        raise Exception.Create(LangNotFound[Integer(DownloadLanguage)]);
-
-      var LContentLength := GetContentLength(hURL);
-      var LBufferTotal: Int64 := 0;
-      if LContentLength < 0 then
-        raise Exception.Create(LangNotFound[Integer(DownloadLanguage)]);
+      if hURL = nil then
+        raise Exception.CreateFmt(LangNoConnection[Integer(DownloadLanguage)], [GetLastError]);
       try
-        AssignFile(f, AFile);
-        Rewrite(f,1);
+        if GetContentStatusCode(hURL) >= 400 then
+          raise Exception.Create(LangNotFound[Integer(DownloadLanguage)]);
+
+        var LContentLength := GetContentLength(hURL);
+        var LBufferTotal: Int64 := 0;
+        if LContentLength < 0 then
+          raise Exception.Create(LangNotFound[Integer(DownloadLanguage)]);
+
+        LArquivo := TFileStream.Create(AFile, fmCreate);
+        LCriou := True;
         try
           repeat
-            InternetReadFile(hURL, @Buffer, SizeOf(Buffer), BufferLen);
-            BlockWrite(f, Buffer, BufferLen);
-            LBufferTotal := LBufferTotal + BufferLen;
-            DoUpdate(LContentLength, LBufferTotal);
+            // Só grava o que foi lido; a leitura que falha interrompe o download.
+            if not InternetReadFile(hURL, @Buffer, SizeOf(Buffer), BufferLen) then
+              raise Exception.CreateFmt(LangReadError[Integer(DownloadLanguage)], [GetLastError]);
+            if BufferLen > 0 then
+            begin
+              LArquivo.WriteBuffer(Buffer, BufferLen);
+              LBufferTotal := LBufferTotal + BufferLen;
+              DoUpdate(LContentLength, LBufferTotal);
+            end;
           until BufferLen = 0;
         finally
-          CloseFile(f);
-          DoEnd;
+          LArquivo.Free;
         end;
+        LBaixou := True;
       finally
         InternetCloseHandle(hURL);
-      end
+      end;
     finally
       InternetCloseHandle(hSession);
     end;
   except on E:Exception do
     begin
       FFileName := EmptyStr;
+      // Arquivo pela metade não fica no disco.
+      if LCriou then
+        DeleteFile(AFile);
       if Assigned(FOnError) then
         FOnError(E.Message);
     end;
   end;
+
+  // O OnEnd só vem quando o download terminou; antes ele era chamado até depois de uma falha.
+  if LBaixou then
+    DoEnd;
 end;
 
 class function TDownloadWinInet.New: IDownload;

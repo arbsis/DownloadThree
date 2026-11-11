@@ -42,6 +42,8 @@ type
     function SimpleDownloadFile(AUrl, AFile: String): Boolean;
     function CheckMD5File(AUrl, AFile, AMD5: String): Boolean;
     class function New: IDownloadTools;
+    // True quando o Windows está sem o TLS 1.2, e por isso os downloads em https falham (Windows 7).
+    class function TLS12Desligado: Boolean;
   end;
 
 implementation
@@ -155,6 +157,11 @@ end;
 class function TDownloadThreeTools.New: IDownloadTools;
 begin
   Result := Self.Create;
+end;
+
+class function TDownloadThreeTools.TLS12Desligado: Boolean;
+begin
+  Result := Downloads.WinInet.TLS12Desligado;
 end;
 
 function TDownloadThreeTools.SimpleDownloadFile(AUrl, AFile: String): Boolean;

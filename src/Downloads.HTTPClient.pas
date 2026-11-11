@@ -91,31 +91,38 @@ end;
 function TDownloadToolsHTTPClient.SimpleDownloadFile(AUrl, AFile: String): Boolean;
 var
   FClient: THTTPClient;
+  LCriou: Boolean;
 begin
+  // Nunca levanta exceção: sem conexão (Windows 7 sem TLS 1.2, por exemplo) devolve False.
   Result := False;
-  FClient := THTTPClient.Create;
+  LCriou := False;
   try
-    var LResponse := FClient.Head(AUrl);
-    if LResponse.StatusCode >= 400 then
-      Exit;
-
-    // Create the file that is going to be dowloaded
-    var FDownloadStream := TFileStream.Create(AFile, fmCreate);
+    FClient := THTTPClient.Create;
     try
-      FDownloadStream.Position := 0;
-      // Start the download process
+      var LResponse := FClient.Head(AUrl);
+      if LResponse.StatusCode >= 400 then
+        Exit;
+
+      // Create the file that is going to be dowloaded
+      var FDownloadStream := TFileStream.Create(AFile, fmCreate);
+      LCriou := True;
       try
-        FClient.Get(AUrl, FDownloadStream);
-        Result := True
-      except
-        Result := False;
+        FDownloadStream.Position := 0;
+        // Start the download process
+        Result := FClient.Get(AUrl, FDownloadStream).StatusCode < 400;
+      finally
+        FDownloadStream.Free;
       end;
     finally
-      FDownloadStream.Free;
+      FClient.Free;
     end;
-  finally
-    FClient.Free;
+  except
+    Result := False;
   end;
+
+  // Arquivo pela metade não fica no disco.
+  if LCriou and (not Result) then
+    DeleteFile(AFile);
 end;
 
 function TDownloadToolsHTTPClient.CheckMD5File(AUrl, AFile, AMD5: String): Boolean;
