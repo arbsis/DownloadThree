@@ -152,7 +152,7 @@ end;
 
 procedure TDownloadHTTPClient.DoEnd;
 begin
-  FDownloadStream.Free;
+  FreeAndNil(FDownloadStream);
   try
     if Assigned(FOnEnd) then
       FOnEnd(FFileName);
@@ -171,7 +171,8 @@ begin
     var LResponse := FHttp.Head(AUrl);
     if LResponse.StatusCode >= 400 then
     begin
-      FOnError(LangNotFound[Integer(DownloadLanguage)]);
+      if Assigned(FOnError) then
+        FOnError(LangNotFound[Integer(DownloadLanguage)]);
       Exit;
     end;
 
@@ -185,6 +186,12 @@ begin
     DoEnd;
   except on E: Exception do
     begin
+      // Download que falhou no meio: o arquivo não fica aberto nem pela metade no disco
+      if Assigned(FDownloadStream) then
+      begin
+        FreeAndNil(FDownloadStream);
+        System.SysUtils.DeleteFile(AFile);
+      end;
       FFileName := EmptyStr;
       if Assigned(FOnError) then
         FOnError(E.Message);

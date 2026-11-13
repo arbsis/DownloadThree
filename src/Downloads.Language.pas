@@ -20,6 +20,7 @@ var
   LangCheckDownloadResume: TArray<String>;
   LangNoConnection: TArray<String>;
   LangReadError: TArray<String>;
+  LangEndError: TArray<String>;
 
 implementation
 
@@ -31,6 +32,7 @@ begin
   SetLength(LangCheckDownloadResume, 2);
   SetLength(LangNoConnection, 2);
   SetLength(LangReadError, 2);
+  SetLength(LangEndError, 2);
 
   LangNotFound[Integer(TDownloadLanguage.ptBR)] := 'Arquivo não encontrado!';
   LangNotFound[Integer(TDownloadLanguage.EN)] := 'File not found!';
@@ -43,6 +45,9 @@ begin
 
   LangReadError[Integer(TDownloadLanguage.ptBR)] := 'O download foi interrompido (erro %d).';
   LangReadError[Integer(TDownloadLanguage.EN)] := 'The download was interrupted (error %d).';
+
+  LangEndError[Integer(TDownloadLanguage.ptBR)] := 'O arquivo foi baixado, mas houve erro ao processá-lo: %s';
+  LangEndError[Integer(TDownloadLanguage.EN)] := 'The file was downloaded, but processing it failed: %s';
 end;
 
 initialization

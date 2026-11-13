@@ -68,11 +68,10 @@ begin
       LHttp.Get(AUrl, LFile);
       LFile.SaveToFile(AFile);
       Result := True;
-    except on E:Exception do
-      begin
-        if LHttp.GetHashCode >= 400 then
-          Exit;
-      end;
+    except
+      // Qualquer falha (código HTTP >= 400, conexão, TLS) devolve False, e o TDownloadThreeTools tenta o próximo método.
+      // Antes conferia LHttp.GetHashCode, que é um número do TObject, não o código da resposta.
+      Result := False;
     end;
   finally
     LIdSSL.Free;
@@ -152,7 +151,8 @@ begin
       FreeAndNil(FDownloadStream);
       FFileName := EmptyStr;
       if Assigned(FOnError) then
-        if FHttp.GetHashCode >= 400 then
+        // Código da resposta HTTP (antes GetHashCode, número do TObject: todo erro virava "não encontrado")
+        if FHttp.ResponseCode >= 400 then
           FOnError(LangNotFound[Integer(DownloadLanguage)])
         else
           FOnError(E.Message);

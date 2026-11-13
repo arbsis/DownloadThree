@@ -56,9 +56,14 @@ var
   srv: DWORD;
 begin
   srv := 0;
-  SBufferSize := 20;
+  // Tamanho em bytes (com 20, cabiam só 9 dígitos: arquivos acima de ~1 GB ficavam sem tamanho e o Download recusava)
+  SBufferSize := SizeOf(SBuffer);
   if HttpQueryInfo(URLHandle, HTTP_QUERY_CONTENT_LENGTH, @SBuffer, SBufferSize, srv) then
-    Result := StrToInt64(String(SBuffer))
+  begin
+    var LTexto: String;
+    SetString(LTexto, PChar(@SBuffer[1]), SBufferSize div SizeOf(Char));
+    Result := StrToInt64Def(LTexto, -1);
+  end
   else
     Result := -1;
 end;
@@ -70,9 +75,13 @@ var
   srv: DWORD;
 begin
   srv := 0;
-  SBufferSize := 20;
+  SBufferSize := SizeOf(SBuffer); // em bytes
   if HttpQueryInfo(URLHandle, HTTP_QUERY_STATUS_CODE, @SBuffer, SBufferSize, srv) then
-    Result := StrToInt(String(SBuffer))
+  begin
+    var LTexto: String;
+    SetString(LTexto, PChar(@SBuffer[1]), SBufferSize div SizeOf(Char));
+    Result := StrToIntDef(LTexto, -1);
+  end
   else
     Result := -1;
 end;

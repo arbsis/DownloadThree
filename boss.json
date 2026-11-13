@@ -1,7 +1,7 @@
 {
 	"name": "DownloadThree",
 	"description": "",
-	"version": "0.0.6",
+	"version": "0.0.7",
 	"homepage": "github.com/arbsis/DownloadThree",
 	"mainsrc": "./src",
 	"projects": [

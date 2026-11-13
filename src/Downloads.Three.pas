@@ -25,6 +25,7 @@ type
     FOnError: TIntegrationMessage;
   private
     procedure DoError(AValue: Variant);
+    procedure DoEnd(AValue: Variant);
     procedure DownloadWinInet;
     procedure DownloadIndy;
     procedure DownloadHTTPClient;
@@ -48,6 +49,9 @@ type
 
 implementation
 
+uses
+  System.SysUtils, Downloads.Language;
+
 { TDownloadThree }
 
 procedure TDownloadThree.DoError(AValue: Variant);
@@ -61,8 +65,23 @@ begin
       if FTypeDownload = TTypeDownload.HTTPClient then
       begin
         FTypeDownload := TTypeDownload.None;
-        FOnError(AValue);
+        if Assigned(FOnError) then
+          FOnError(AValue);
       end;
+end;
+
+procedure TDownloadThree.DoEnd(AValue: Variant);
+begin
+  // O arquivo já foi baixado: erro no OnEnd de quem chama não é falha de download. Vai direto ao OnError de quem
+  // chama, sem tentar o próximo método (antes o arquivo era baixado de novo e o OnEnd rodava até 3 vezes)
+  try
+    if Assigned(FOnEnd) then
+      FOnEnd(AValue);
+  except
+    on E: Exception do
+      if Assigned(FOnError) then
+        FOnError(Format(LangEndError[Integer(DownloadLanguage)], [E.Message]));
+  end;
 end;
 
 function TDownloadThree.Download(AUrl, AFile: String): IDownload;
@@ -78,7 +97,7 @@ begin
   FTypeDownload := TTypeDownload.HTTPClient;
   TDownloadHTTPClient
     .New
-      .OnEnd(FOnEnd)
+      .OnEnd(DoEnd)
       .OnUpdate(FOnUpdate)
       .OnError(DoError)
     .Download(FUrl, FFile);
@@ -89,7 +108,7 @@ begin
   FTypeDownload := TTypeDownload.Indy;
   TDownloadIndy
     .New
-      .OnEnd(FOnEnd)
+      .OnEnd(DoEnd)
       .OnUpdate(FOnUpdate)
       .OnError(DoError)
     .Download(FUrl, FFile);
@@ -100,7 +119,7 @@ begin
   FTypeDownload := TTypeDownload.WinInet;
   TDownloadWinInet
     .New
-      .OnEnd(FOnEnd)
+      .OnEnd(DoEnd)
       .OnUpdate(FOnUpdate)
       .OnError(DoError)
     .Download(FUrl, FFile);
